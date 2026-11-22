@@ -32,6 +32,8 @@ interface PharmacyMarker {
 export interface PharmacyLayers {
   /** 距離区分ごとのレイヤー（BINS と同じ順番） */
   groups: L.LayerGroup[];
+  /** 距離区分ごとの「最寄り施設への直線と施設の印」のレイヤー（BINS と同じ順番） */
+  lineGroups: L.LayerGroup[];
   /** 薬局から地図上のマーカーを引く */
   markerOf: (p: Pharmacy) => L.CircleMarker | undefined;
 }
@@ -42,6 +44,7 @@ const radiusScale = (zoom: number) => Math.max(0.55, Math.min(1.8, (zoom - 8) / 
 export function createPharmacyLayers(map: L.Map, pharmacies: Pharmacy[]): PharmacyLayers {
   const renderer = L.canvas({ padding: 0.5 });
   const groups = BINS.map(() => L.layerGroup());
+  const lineGroups = BINS.map(() => L.layerGroup());
   const markers: PharmacyMarker[] = [];
   const byPharmacy = new Map<Pharmacy, L.CircleMarker>();
 
@@ -50,6 +53,7 @@ export function createPharmacyLayers(map: L.Map, pharmacies: Pharmacy[]): Pharma
     const binIndex = binIndexOf(p.distanceM);
     const bin = BINS[binIndex];
     const group = groups[binIndex];
+    const lineGroup = lineGroups[binIndex];
     const prominent = isProminent(binIndex);
 
     if (bin.drawLine) {
@@ -66,7 +70,7 @@ export function createPharmacyLayers(map: L.Map, pharmacies: Pharmacy[]): Pharma
           dashArray: prominent ? undefined : "4 3",
           interactive: false,
         },
-      ).addTo(group);
+      ).addTo(lineGroup);
       L.circleMarker([p.nearest.lat, p.nearest.lng], {
         renderer,
         radius: 3,
@@ -76,7 +80,7 @@ export function createPharmacyLayers(map: L.Map, pharmacies: Pharmacy[]): Pharma
         fillOpacity: 1,
       })
         .bindPopup(`<b>${escapeHtml(p.nearest.name)}</b><br>${escapeHtml(p.nearest.address)}<br>（${escapeHtml(p.name)} の最寄り）`)
-        .addTo(group);
+        .addTo(lineGroup);
     }
 
     const marker = L.circleMarker([p.lat, p.lng], {
@@ -104,7 +108,7 @@ export function createPharmacyLayers(map: L.Map, pharmacies: Pharmacy[]): Pharma
   map.on("zoomend", resize);
   resize();
 
-  return { groups, markerOf: (p) => byPharmacy.get(p) };
+  return { groups, lineGroups, markerOf: (p) => byPharmacy.get(p) };
 }
 
 export function createMedicalLayer(facilities: MedicalFacility[]): L.LayerGroup {

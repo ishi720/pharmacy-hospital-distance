@@ -20,14 +20,21 @@ async function main() {
     loadJson<MedicalFacility[]>("data/medical.json"),
   ]);
 
-  const { groups, markerOf } = createPharmacyLayers(map, pharmacies);
+  const { groups, lineGroups, markerOf } = createPharmacyLayers(map, pharmacies);
   const medicalLayer = createMedicalLayer(medical);
 
   // 近い区分から順に追加し直すことで、遠い区分が常に上に描かれるようにする
+  // 最寄り施設への直線は「病院・診療所の位置」を表示しているときだけ描く
   const visible = BINS.map((b) => b.visible);
+  let medicalVisible = false;
   const redraw = () => {
     groups.forEach((g) => g.remove());
-    groups.forEach((g, i) => visible[i] && g.addTo(map));
+    lineGroups.forEach((g) => g.remove());
+    groups.forEach((g, i) => {
+      if (!visible[i]) return;
+      if (medicalVisible) lineGroups[i].addTo(map);
+      g.addTo(map);
+    });
   };
   const setBinVisible = renderBinFilters($("bins"), pharmacies, (i, v) => {
     visible[i] = v;
@@ -38,8 +45,10 @@ async function main() {
   const medicalToggle = $<HTMLInputElement>("medical-toggle");
   const setMedicalVisible = (v: boolean) => {
     medicalToggle.checked = v;
+    medicalVisible = v;
     if (v) medicalLayer.addTo(map);
     else medicalLayer.remove();
+    redraw();
   };
   medicalToggle.addEventListener("change", () => setMedicalVisible(medicalToggle.checked));
 
