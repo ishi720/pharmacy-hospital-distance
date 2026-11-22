@@ -17,7 +17,8 @@
 │   ├─ pharmacies.json   薬局と最寄り医療機関・距離
 │   └─ medical.json      病院・診療所の位置
 ├─ scripts/
-│   └─ prepare_data.py   元データ → JSON の変換と距離計算
+│   ├─ prepare_data.py   元データ → JSON の変換と距離計算
+│   └─ summarize.py      距離の分布と遠い薬局の集計
 └─ src/
     ├─ main.ts           データ読み込みと画面の組み立て
     ├─ map.ts            Leaflet の地図・点・線
@@ -47,6 +48,7 @@ npm run build    # dist/ に出力
 ```sh
 pip install pandas numpy scikit-learn
 npm run data
+python3 scripts/summarize.py public/data/pharmacies.json
 ```
 
 `--pref` を変えると他の都道府県、空文字にすると全国で作れます（`scripts/prepare_data.py --help`）。
