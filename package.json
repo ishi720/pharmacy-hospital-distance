@@ -1,0 +1,20 @@
+{
+  "name": "pharmacy-hospital-distance",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "data": "python3 scripts/prepare_data.py --src ./raw --geo ./raw/latest.csv --pref 東京都 --out public/data"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.22",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4"
+  }
+}

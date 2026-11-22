@@ -1,0 +1,124 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-size: 13px;
+  color: #1d2624;
+}
+
+#map {
+  flex: 1;
+}
+
+#side {
+  width: 300px;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  background: #fff;
+  border-left: 1px solid #ddd;
+}
+
+h2 {
+  font-size: 14px;
+  margin: 14px 0 6px;
+}
+
+h2:first-child {
+  margin-top: 4px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.count {
+  margin-left: auto;
+  color: #777;
+  font-variant-numeric: tabular-nums;
+}
+
+#ranking {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#ranking button {
+  all: unset;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 4px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+
+#ranking button:hover,
+#ranking button:focus-visible {
+  background: #f3f6f5;
+}
+
+#ranking button:focus-visible {
+  outline: 2px solid #0f766e;
+}
+
+.rank {
+  color: #888;
+}
+
+.name small {
+  display: block;
+  color: #888;
+}
+
+.distance {
+  font-weight: 700;
+  color: #b0122d;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.note {
+  color: #888;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.error {
+  color: #b0122d;
+  font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  body {
+    flex-direction: column;
+  }
+  #map {
+    height: 65vh;
+    flex: none;
+  }
+  #side {
+    width: auto;
+    border-left: 0;
+    border-top: 1px solid #ddd;
+  }
+}
