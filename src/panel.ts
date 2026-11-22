@@ -1,14 +1,16 @@
 import { BINS, binIndexOf } from "./bins";
-import type { Pharmacy } from "./types";
+import type { NearestPair } from "./types";
 
 /** 距離区分のチェックボックスを描画し、変更されたら onChange を呼ぶ */
 export function renderBinFilters(
   container: HTMLElement,
-  pharmacies: Pharmacy[],
+  pairs: NearestPair[],
+  visible: readonly boolean[],
   onChange: (binIndex: number, visible: boolean) => void,
 ): (binIndex: number, visible: boolean) => void {
   const counts = BINS.map(() => 0);
-  for (const p of pharmacies) counts[binIndexOf(p.distanceM)]++;
+  for (const p of pairs) counts[binIndexOf(p.distanceM)]++;
+  container.replaceChildren();
 
   const inputs = BINS.map((bin, i) => {
     const label = document.createElement("label");
@@ -16,7 +18,7 @@ export function renderBinFilters(
     const input = document.createElement("input");
     input.type = "checkbox";
     input.id = `bin-${i}`;
-    input.checked = bin.visible;
+    input.checked = visible[i];
     input.addEventListener("change", () => onChange(i, input.checked));
     const swatch = document.createElement("span");
     swatch.className = "swatch";
@@ -37,8 +39,13 @@ export function renderBinFilters(
 }
 
 /** 遠い順のランキングを描画する */
-export function renderRanking(container: HTMLElement, pharmacies: Pharmacy[], onSelect: (p: Pharmacy) => void): void {
-  const top = [...pharmacies].sort((a, b) => b.distanceM - a.distanceM).slice(0, 15);
+export function renderRanking(
+  container: HTMLElement,
+  pairs: NearestPair[],
+  onSelect: (p: NearestPair) => void,
+): void {
+  container.replaceChildren();
+  const top = [...pairs].sort((a, b) => b.distanceM - a.distanceM).slice(0, 15);
   top.forEach((p, i) => {
     const li = document.createElement("li");
     const button = document.createElement("button");
@@ -50,7 +57,7 @@ export function renderRanking(container: HTMLElement, pharmacies: Pharmacy[], on
     name.className = "name";
     name.textContent = p.name;
     const addr = document.createElement("small");
-    addr.textContent = p.address.replace(/^東京都/, "");
+    addr.textContent = p.detail.replace(/^東京都/, "");
     name.append(addr);
     const dist = document.createElement("span");
     dist.className = "distance";

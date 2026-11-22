@@ -8,12 +8,22 @@
   <body>
     <div id="map"></div>
     <aside id="side">
-      <h2>表示する距離（最寄りの病院・診療所まで）</h2>
-      <div id="bins"></div>
-      <label class="row"><input type="checkbox" id="medical-toggle" />病院・診療所の位置（灰色）</label>
-      <p class="note">線は各薬局から最寄りの病院・診療所（白抜きの丸）への直線です。</p>
-      <h2>遠い薬局 TOP15</h2>
-      <ol id="ranking"></ol>
+      <div class="tabs" role="tablist" aria-label="距離を測る向き">
+        <button type="button" role="tab" id="tab-pharmacy" aria-controls="view" aria-selected="true">
+          薬局 → 病院・診療所
+        </button>
+        <button type="button" role="tab" id="tab-medical" aria-controls="view" aria-selected="false">
+          病院・診療所 → 薬局
+        </button>
+      </div>
+      <div id="view" role="tabpanel">
+        <h2 id="bins-title"></h2>
+        <div id="bins"></div>
+        <label class="row"><input type="checkbox" id="others-toggle" /><span id="others-label"></span></label>
+        <p class="note" id="line-note"></p>
+        <h2 id="ranking-title"></h2>
+        <ol id="ranking"></ol>
+      </div>
       <p class="note">
         出典：厚生労働省「医療情報ネットのオープンデータ」（2026年6月1日時点）を加工して作成。
         座標の欠けは Geolonia 住所データ（CC BY 4.0）で補完。距離は直線距離。

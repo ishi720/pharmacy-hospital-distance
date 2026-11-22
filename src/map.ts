@@ -1,7 +1,7 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { BINS, binIndexOf, isProminent } from "./bins";
-import type { MedicalFacility, Pharmacy } from "./types";
+import type { NearestPair, Place } from "./types";
 
 const GSI_ATTRIBUTION = '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>';
 const gsi = (id: string, ext = "png") =>
@@ -24,32 +24,33 @@ export function createMap(el: HTMLElement): L.Map {
   return map;
 }
 
-interface PharmacyMarker {
+interface PairMarker {
   marker: L.CircleMarker;
   binIndex: number;
 }
 
-export interface PharmacyLayers {
+export interface DistanceLayers {
   /** 距離区分ごとのレイヤー（BINS と同じ順番） */
   groups: L.LayerGroup[];
-  /** 距離区分ごとの「最寄り施設への直線と施設の印」のレイヤー（BINS と同じ順番） */
+  /** 距離区分ごとの「最寄りへの直線と相手の印」のレイヤー（BINS と同じ順番） */
   lineGroups: L.LayerGroup[];
-  /** 薬局から地図上のマーカーを引く */
-  markerOf: (p: Pharmacy) => L.CircleMarker | undefined;
+  /** 施設から地図上のマーカーを引く */
+  markerOf: (p: NearestPair) => L.CircleMarker | undefined;
 }
 
 /** ズームに合わせて点の大きさを変える（広域では小さく、拡大すると大きく） */
 const radiusScale = (zoom: number) => Math.max(0.55, Math.min(1.8, (zoom - 8) / 4));
 
-export function createPharmacyLayers(map: L.Map, pharmacies: Pharmacy[]): PharmacyLayers {
+/** 施設を最寄りまでの距離で色分けし、最寄りへの直線を引く。pairs は近い順に並べておく */
+export function createDistanceLayers(map: L.Map, pairs: NearestPair[]): DistanceLayers {
   const renderer = L.canvas({ padding: 0.5 });
   const groups = BINS.map(() => L.layerGroup());
   const lineGroups = BINS.map(() => L.layerGroup());
-  const markers: PharmacyMarker[] = [];
-  const byPharmacy = new Map<Pharmacy, L.CircleMarker>();
+  const markers: PairMarker[] = [];
+  const byPair = new Map<NearestPair, L.CircleMarker>();
 
-  // pharmacies は近い順に並んでいるので、遠い薬局ほど後から描かれて上に重なる
-  for (const p of pharmacies) {
+  // 近い順に並んでいるので、遠い施設ほど後から描かれて上に重なる
+  for (const p of pairs) {
     const binIndex = binIndexOf(p.distanceM);
     const bin = BINS[binIndex];
     const group = groups[binIndex];
@@ -79,7 +80,9 @@ export function createPharmacyLayers(map: L.Map, pharmacies: Pharmacy[]): Pharma
         fillColor: "#fff",
         fillOpacity: 1,
       })
-        .bindPopup(`<b>${escapeHtml(p.nearest.name)}</b><br>${escapeHtml(p.nearest.address)}<br>（${escapeHtml(p.name)} の最寄り）`)
+        .bindPopup(
+          `<b>${escapeHtml(p.nearest.name)}</b><br>${escapeHtml(p.nearest.detail)}<br>（${escapeHtml(p.name)} の最寄り）`,
+        )
         .addTo(lineGroup);
     }
 
@@ -93,12 +96,12 @@ export function createPharmacyLayers(map: L.Map, pharmacies: Pharmacy[]): Pharma
       fillOpacity: binIndex >= 2 ? 0.95 : 0.6,
     })
       .bindPopup(
-        `<b>${escapeHtml(p.name)}</b><br>${escapeHtml(p.address)}<br>` +
+        `<b>${escapeHtml(p.name)}</b><br>${escapeHtml(p.detail)}<br>` +
           `最寄り：${escapeHtml(p.nearest.name)}<br>距離：<b>${p.distanceM.toLocaleString()}m</b>`,
       )
       .addTo(group);
     markers.push({ marker, binIndex });
-    byPharmacy.set(p, marker);
+    byPair.set(p, marker);
   }
 
   const resize = () => {
@@ -108,21 +111,21 @@ export function createPharmacyLayers(map: L.Map, pharmacies: Pharmacy[]): Pharma
   map.on("zoomend", resize);
   resize();
 
-  return { groups, lineGroups, markerOf: (p) => byPharmacy.get(p) };
+  return { groups, lineGroups, markerOf: (p) => byPair.get(p) };
 }
 
-export function createMedicalLayer(facilities: MedicalFacility[]): L.LayerGroup {
+/** 相手側の施設を灰色の小さな点で表示するレイヤー */
+export function createPlaceLayer(places: Place[]): L.LayerGroup {
   const renderer = L.canvas({ padding: 0.5 });
-  const label = { hospital: "病院", clinic: "診療所" } as const;
   return L.layerGroup(
-    facilities.map((f) =>
+    places.map((f) =>
       L.circleMarker([f.lat, f.lng], {
         renderer,
         radius: 1.8,
         stroke: false,
         fillColor: "#444",
         fillOpacity: 0.5,
-      }).bindPopup(`<b>${escapeHtml(f.name)}</b><br>${label[f.kind]}`),
+      }).bindPopup(`<b>${escapeHtml(f.name)}</b><br>${escapeHtml(f.detail)}`),
     ),
   );
 }

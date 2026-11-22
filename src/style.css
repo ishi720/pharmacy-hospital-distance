@@ -24,6 +24,38 @@ body {
   border-left: 1px solid #ddd;
 }
 
+.tabs {
+  display: flex;
+  margin: -12px -14px 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.tabs button {
+  all: unset;
+  flex: 1;
+  padding: 10px 4px 8px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #777;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+}
+
+.tabs button:hover {
+  background: #f3f6f5;
+}
+
+.tabs button:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: -2px;
+}
+
+.tabs button[aria-selected="true"] {
+  color: #0f766e;
+  border-bottom-color: #0f766e;
+}
+
 h2 {
   font-size: 14px;
   margin: 14px 0 6px;

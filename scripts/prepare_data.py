@@ -1,4 +1,5 @@
-"""薬局ごとに最寄りの病院・診療所までの直線距離を計算し、地図用のJSONを出力する。
+"""薬局ごとに最寄りの病院・診療所、病院・診療所ごとに最寄りの薬局までの直線距離を計算し、
+地図用のJSONを出力する。
 
 入力（厚生労働省「医療情報ネットのオープンデータ」）:
   01-1_hospital_facility_info_YYYYMMDD.csv  病院（施設票）
@@ -133,6 +134,26 @@ def find(src: Path, prefix: str) -> Path:
     return files[-1]
 
 
+def place(r) -> dict:
+    out = {"name": r["name"], "address": r["address"]}
+    if r["kind"] != "pharmacy":
+        out["kind"] = r["kind"]
+    return out | {"lat": round(r["lat"], 5), "lng": round(r["lng"], 5)}
+
+
+def nearest_records(sources: pd.DataFrame, targets: pd.DataFrame) -> list[dict]:
+    """sources の各施設について targets の中の最寄りと直線距離を求め、近い順に並べて返す。"""
+    tree = BallTree(np.radians(targets[["lat", "lng"]].values), metric="haversine")
+    dist, idx = tree.query(np.radians(sources[["lat", "lng"]].values), k=1)
+    distance_m = np.round(dist[:, 0] * EARTH_RADIUS_KM * 1000).astype(int)
+    records = [
+        place(s) | {"distanceM": int(d), "nearest": place(targets.iloc[i])}
+        for (_, s), d, i in zip(sources.iterrows(), distance_m, idx[:, 0])
+    ]
+    records.sort(key=lambda r: r["distanceM"])
+    return records
+
+
 # ---------------------------------------------------------------- メイン
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -149,47 +170,19 @@ def main() -> None:
 
     medical = pd.concat([hospitals, clinics], ignore_index=True)
     medical = medical[~medical["name"].str.contains(EXCLUDE_KEYWORDS, na=False)].reset_index(drop=True)
-    if args.pref:
-        pharmacies = pharmacies[pharmacies["address"].str.startswith(args.pref)].reset_index(drop=True)
+    in_pref = lambda df: df if not args.pref else df[df["address"].str.startswith(args.pref)].reset_index(drop=True)
 
-    # 最寄り探索は都道府県をまたいで行う（県境の薬局のため）
-    tree = BallTree(np.radians(medical[["lat", "lng"]].values), metric="haversine")
-    dist, idx = tree.query(np.radians(pharmacies[["lat", "lng"]].values), k=1)
-    nearest = medical.iloc[idx[:, 0]].reset_index(drop=True)
-    pharmacies["distance_m"] = np.round(dist[:, 0] * EARTH_RADIUS_KM * 1000).astype(int)
-
-    records = [
-        {
-            "name": p.name,
-            "address": p.address,
-            "lat": round(p.lat, 5),
-            "lng": round(p.lng, 5),
-            "distanceM": int(p.distance_m),
-            "nearest": {
-                "name": n["name"],
-                "address": n["address"],
-                "kind": n["kind"],
-                "lat": round(n["lat"], 5),
-                "lng": round(n["lng"], 5),
-            },
-        }
-        for p, (_, n) in zip(pharmacies.itertuples(), nearest.iterrows())
-    ]
-    records.sort(key=lambda r: r["distanceM"])
-
-    med_out = medical if not args.pref else medical[medical["address"].str.startswith(args.pref)]
-    medical_records = [
-        {"name": r.name, "kind": r.kind, "lat": round(r.lat, 5), "lng": round(r.lng, 5)}
-        for r in med_out.itertuples()
-    ]
+    # 最寄り探索の相手は都道府県で絞らない（県境の施設が隣県の相手を最寄りにできるように）
+    pharmacy_records = nearest_records(in_pref(pharmacies), medical)
+    medical_records = nearest_records(in_pref(medical), pharmacies)
 
     args.out.mkdir(parents=True, exist_ok=True)
-    (args.out / "pharmacies.json").write_text(json.dumps(records, ensure_ascii=False, separators=(",", ":")))
-    (args.out / "medical.json").write_text(json.dumps(medical_records, ensure_ascii=False, separators=(",", ":")))
-    d = pharmacies["distance_m"]
-    print(f"薬局 {len(records):,}件 / 医療機関 {len(medical_records):,}件 を {args.out} に出力")
-    print(f"距離の中央値 {int(d.median())}m / 最大 {int(d.max())}m")
-
+    for name, records in (("pharmacies.json", pharmacy_records), ("medical.json", medical_records)):
+        (args.out / name).write_text(json.dumps(records, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"薬局 {len(pharmacy_records):,}件 / 医療機関 {len(medical_records):,}件 を {args.out} に出力")
+    for label, records in (("薬局→医療機関", pharmacy_records), ("医療機関→薬局", medical_records)):
+        d = pd.Series([r["distanceM"] for r in records])
+        print(f"{label}: 距離の中央値 {int(d.median())}m / 最大 {int(d.max())}m")
 
 if __name__ == "__main__":
     main()
