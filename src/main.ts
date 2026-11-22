@@ -1,7 +1,7 @@
 import "./style.css";
 import type L from "leaflet";
 import { BINS, binIndexOf } from "./bins";
-import { createDistanceLayers, createMap, createPlaceLayer, type DistanceLayers } from "./map";
+import { createDistanceLayers, createMap, createPlaceLayer, escapeHtml, type DistanceLayers } from "./map";
 import { renderBinFilters, renderRanking } from "./panel";
 import type { MedicalFacility, MedicalKind, NearestPair, Pharmacy, Place } from "./types";
 
@@ -23,14 +23,39 @@ const toPlace = (f: { name: string; lat: number; lng: number }, detail: string):
   lng: f.lng,
 });
 
+const RANKING_SIZE = 15;
+
+/** 最寄りとして選ばれた施設と、それを最寄りにしている施設（距離を問わず全件） */
+interface Hub {
+  target: Place;
+  sources: NearestPair[];
+}
+
+function hubsOf(pairs: NearestPair[]): Hub[] {
+  const byTarget = new Map<string, Hub>();
+  for (const p of pairs) {
+    const { name, lat, lng } = p.nearest;
+    const key = `${name}|${lat}|${lng}`;
+    const hub = byTarget.get(key);
+    if (hub) hub.sources.push(p);
+    else byTarget.set(key, { target: p.nearest, sources: [p] });
+  }
+  return [...byTarget.values()].sort((a, b) => b.sources.length - a.sources.length);
+}
+
+type RankingMode = "far" | "hub";
+
 /** タブ1つ分の表示（薬局→医療機関 または 医療機関→薬局） */
 interface View {
   tab: HTMLButtonElement;
   binsTitle: string;
   othersLabel: string;
   lineNote: string;
-  rankingTitle: string;
+  rankingTitle: Record<RankingMode, string>;
+  /** 最寄りにしている側の呼び名（ポップアップ用） */
+  sourceLabel: string;
   pairs: NearestPair[];
+  hubs: Hub[];
   layers: DistanceLayers;
   /** 相手側の施設（灰色の点） */
   others: L.LayerGroup;
@@ -66,8 +91,13 @@ async function main() {
       binsTitle: "表示する距離（薬局から最寄りの病院・診療所まで）",
       othersLabel: "病院・診療所の位置（灰色）",
       lineNote: "チェックを入れると、各薬局から最寄りの病院・診療所（白抜きの丸）への直線も表示します。",
-      rankingTitle: "病院・診療所から遠い薬局 TOP15",
+      rankingTitle: {
+        far: "病院・診療所から遠い薬局 TOP15",
+        hub: "病院・診療所に最も近い薬局の件数 TOP15",
+      },
+      sourceLabel: "薬局",
       pairs: pharmacyPairs,
+      hubs: hubsOf(pharmacyPairs),
       layers: createDistanceLayers(map, pharmacyPairs),
       others: createPlaceLayer(medicalPlaces),
       visible: BINS.map((b) => b.visible),
@@ -78,8 +108,13 @@ async function main() {
       othersLabel: "薬局の位置（灰色）",
       lineNote:
         "チェックを入れると、各病院・診療所から最寄りの薬局（白抜きの丸）への直線も表示します。",
-      rankingTitle: "薬局から遠い病院・診療所 TOP15",
+      rankingTitle: {
+        far: "薬局から遠い病院・診療所 TOP15",
+        hub: "薬局に最も近い病院・診療所の件数 TOP15",
+      },
+      sourceLabel: "病院・診療所",
       pairs: medicalPairs,
+      hubs: hubsOf(medicalPairs),
       layers: createDistanceLayers(map, medicalPairs),
       others: createPlaceLayer(pharmacyPlaces),
       visible: BINS.map((b) => b.visible),
@@ -114,32 +149,85 @@ async function main() {
   };
   othersToggle.addEventListener("change", () => setOthersVisible(othersToggle.checked));
 
+  let rankingMode: RankingMode = "far";
+  const rankingTabs: Record<RankingMode, HTMLButtonElement> = { far: $("rank-far"), hub: $("rank-hub") };
+  let setBinVisible: (binIndex: number, visible: boolean) => void = () => {};
+
+  const showBin = (distanceM: number) => {
+    const i = binIndexOf(distanceM);
+    if (!current.visible[i]) setBinVisible(i, true);
+  };
+
+  const renderCurrentRanking = () => {
+    const view = current;
+    for (const [mode, tab] of Object.entries(rankingTabs)) tab.setAttribute("aria-selected", String(mode === rankingMode));
+    $("ranking-title").textContent = view.rankingTitle[rankingMode];
+    const ranking = $("ranking");
+
+    if (rankingMode === "far") {
+      const top = [...view.pairs].sort((a, b) => b.distanceM - a.distanceM).slice(0, RANKING_SIZE);
+      renderRanking(
+        ranking,
+        top,
+        (p) => ({ name: p.name, detail: p.detail, value: `${(p.distanceM / 1000).toFixed(2)}km` }),
+        (p) => {
+          setOthersVisible(true);
+          showBin(p.distanceM);
+          map.flyToBounds(
+            [
+              [p.lat, p.lng],
+              [p.nearest.lat, p.nearest.lng],
+            ],
+            { padding: [60, 60], maxZoom: 17 },
+          );
+          map.once("moveend", () => view.layers.markerOf(p)?.openPopup());
+        },
+      );
+    } else {
+      renderRanking(
+        ranking,
+        view.hubs.slice(0, RANKING_SIZE),
+        (h) => ({ name: h.target.name, detail: h.target.detail, value: `${h.sources.length}件` }),
+        (h) => {
+          setOthersVisible(true);
+          for (const p of h.sources) showBin(p.distanceM);
+          const { target } = h;
+          map.flyToBounds(
+            [[target.lat, target.lng], ...h.sources.map((p): [number, number] => [p.lat, p.lng])],
+            { padding: [60, 60], maxZoom: 17 },
+          );
+          map.once("moveend", () =>
+            map.openPopup(
+              `<b>${escapeHtml(target.name)}</b><br>${escapeHtml(target.detail)}<br>` +
+                `ここが最も近い${view.sourceLabel}：<b>${h.sources.length}件</b>`,
+              [target.lat, target.lng],
+            ),
+          );
+        },
+      );
+    }
+  };
+
+  for (const [mode, tab] of Object.entries(rankingTabs) as [RankingMode, HTMLButtonElement][]) {
+    tab.addEventListener("click", () => {
+      rankingMode = mode;
+      renderCurrentRanking();
+    });
+  }
+
   const show = (view: View) => {
     current = view;
     for (const v of views) v.tab.setAttribute("aria-selected", String(v === view));
     $("bins-title").textContent = view.binsTitle;
     $("others-label").textContent = view.othersLabel;
     $("line-note").textContent = view.lineNote;
-    $("ranking-title").textContent = view.rankingTitle;
     map.closePopup();
 
-    const setBinVisible = renderBinFilters($("bins"), view.pairs, view.visible, (i, v) => {
+    setBinVisible = renderBinFilters($("bins"), view.pairs, view.visible, (i, v) => {
       view.visible[i] = v;
       redraw();
     });
-    renderRanking($("ranking"), view.pairs, (p) => {
-      setOthersVisible(true);
-      const binIndex = binIndexOf(p.distanceM);
-      if (!view.visible[binIndex]) setBinVisible(binIndex, true);
-      map.flyToBounds(
-        [
-          [p.lat, p.lng],
-          [p.nearest.lat, p.nearest.lng],
-        ],
-        { padding: [60, 60], maxZoom: 17 },
-      );
-      map.once("moveend", () => view.layers.markerOf(p)?.openPopup());
-    });
+    renderCurrentRanking();
     redraw();
   };
 

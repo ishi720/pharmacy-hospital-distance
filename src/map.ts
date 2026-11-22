@@ -10,7 +10,7 @@ const gsi = (id: string, ext = "png") =>
     attribution: GSI_ATTRIBUTION,
   });
 
-const escapeHtml = (s: string) =>
+export const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 export function createMap(el: HTMLElement): L.Map {

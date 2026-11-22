@@ -38,15 +38,23 @@ export function renderBinFilters(
   };
 }
 
-/** 遠い順のランキングを描画する */
-export function renderRanking(
+export interface RankItem {
+  name: string;
+  detail: string;
+  /** 右端に出す値（距離や件数） */
+  value: string;
+}
+
+/** ランキングを描画する（items は並べ替え済み） */
+export function renderRanking<T>(
   container: HTMLElement,
-  pairs: NearestPair[],
-  onSelect: (p: NearestPair) => void,
+  items: T[],
+  describe: (item: T) => RankItem,
+  onSelect: (item: T) => void,
 ): void {
   container.replaceChildren();
-  const top = [...pairs].sort((a, b) => b.distanceM - a.distanceM).slice(0, 15);
-  top.forEach((p, i) => {
+  items.forEach((item, i) => {
+    const { name: title, detail, value } = describe(item);
     const li = document.createElement("li");
     const button = document.createElement("button");
     button.type = "button";
@@ -55,15 +63,15 @@ export function renderRanking(
     rank.textContent = String(i + 1);
     const name = document.createElement("span");
     name.className = "name";
-    name.textContent = p.name;
+    name.textContent = title;
     const addr = document.createElement("small");
-    addr.textContent = p.detail.replace(/^東京都/, "");
+    addr.textContent = detail.replace("東京都", "");
     name.append(addr);
-    const dist = document.createElement("span");
-    dist.className = "distance";
-    dist.textContent = `${(p.distanceM / 1000).toFixed(2)}km`;
-    button.append(rank, name, dist);
-    button.addEventListener("click", () => onSelect(p));
+    const val = document.createElement("span");
+    val.className = "distance";
+    val.textContent = value;
+    button.append(rank, name, val);
+    button.addEventListener("click", () => onSelect(item));
     li.append(button);
     container.append(li);
   });

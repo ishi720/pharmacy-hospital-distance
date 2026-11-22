@@ -21,6 +21,10 @@
         <div id="bins"></div>
         <label class="row"><input type="checkbox" id="others-toggle" /><span id="others-label"></span></label>
         <p class="note" id="line-note"></p>
+        <div class="subtabs" role="tablist" aria-label="ランキングの種類">
+          <button type="button" role="tab" id="rank-far" aria-controls="ranking" aria-selected="true">遠い施設</button>
+          <button type="button" role="tab" id="rank-hub" aria-controls="ranking" aria-selected="false">最寄りの件数</button>
+        </div>
         <h2 id="ranking-title"></h2>
         <ol id="ranking"></ol>
       </div>
